@@ -1,0 +1,211 @@
+---
+title: "NDas Reviews"
+author: "Namrata Das"
+date: ""
+output: 
+  html_document:
+    fig_height: 3
+    fig_width: 5
+---
+<!-- Don't edit in between this line and the one below -->
+```{r include=FALSE}
+# Don't delete this chunk if you are using the DataComputing package
+library(DataComputing)
+```
+*Source file* 
+```{r, results='asis', echo=FALSE}
+includeSourceDocuments()
+```
+<!-- Don't edit the material above this line -->
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+test <- read.file("reviews.csv")
+```
+
+
+####Average ratings of Popular Products
+
+Popular products:
+```{r}
+popular <- test %>%
+  group_by(ProductId) %>%
+  summarise(total_reviews = n()) %>%
+  arrange(desc(total_reviews)) %>%
+  head(10)
+```
+
+Getting the average ratings of popular products:
+```{r}
+avgScores <- c()
+
+for (i in popular$ProductId) {
+  products <- test %>%
+    filter(i == ProductId) %>%
+    select(ProductId, Score)
+  
+  avgScores <- round( c(avgScores, mean(products$Score)), digits=2)
+}
+```
+
+<br>
+
+Creating ggplot:
+
+```{r fig.width=10}
+popular <- popular %>%
+  mutate(averageRatings = avgScores)
+
+graph1 <- popular %>%
+  ggplot(aes(x=ProductId, y=averageRatings)) +
+  geom_bar(stat = "identity")+
+  geom_text(aes(label=averageRatings), vjust=2)+
+  labs(title="Popular products and their Average ratings", x="Product ID", y="Average Rating") + ylim(0, 5)
+
+graph1
+```
+
+We were curious to see if there were any products that people "loved to hate" which are quite often misleading because they have so many reviews, but mostly negative reviews. However, with this graph, we can see that the top 10 products have mostly favorable reviews, all ranging above a 3 out of 5 scale.
+
+<br>
+
+####Evenly distributed ratings?
+
+```{r}
+avgRating <- mean(test$Score, na.rm = TRUE)
+
+avgRating
+```
+
+Shows that most reviews are favorable.
+
+```{r warning=FALSE}
+ratings <- test %>%
+  group_by(Score) %>%
+  summarise(total_scores = n())
+
+graph2 <- ratings %>%
+  ggplot(aes(Score, total_scores)) +
+  geom_point(aes(size=total_scores)) +
+  labs(title="What ratings are most popular", x="Rating", y="Total Number given") +
+  geom_text(aes(label=total_scores, vjust=2))+
+  theme(legend.position="none") +
+  ylim(0, 25000)
+
+graph2
+```
+
+We can see here that people tend to give mostly positive reviews, especially 5 stars. This is why our `avgRating` calculation was quite high also, with a average rating of 4.156
+
+We believed that there would be a lot more negative reviews, since people usually will review an item if they had very polar experiences with it (rather than nuetral reactions). However this was not the case and it seems like 22017 of our users had extremeley favorable ratings for the products they purchased.
+
+<br>
+
+####Most popular words used in negative reviews
+
+```{r}
+negativeReviews <- test %>%
+  filter(Score == 1 | Score == 2) %>%
+  select(Summary)
+```
+
+Now examine all the reviews posted for negative ratings
+
+```{r}
+words <- c()
+
+for (r in negativeReviews$Summary) {
+  words <- c(words, word(r))
+}
+
+letters <- data.frame(words)
+
+letters <- letters %>%
+  extractMatches("([[:alpha:]]+)", var=words)
+
+```
+
+```{r results="hide", echo=FALSE}
+letters <- letters[!is.na(letters)]
+letters <- data.frame(letters)
+colnames(letters) <- c("match1")
+```
+
+```{r fig.width=10, warning=FALSE}
+negWords <- letters %>%
+  group_by(match1) %>%
+  summarise(total=n())%>%
+  filter(total >= 30) %>%
+  arrange(total)
+
+  
+negWords %>%
+  ggplot(aes(x=match1, y=total))+
+  geom_point()+
+  theme(legend.position="none") +
+  ylim(20,100) +
+  labs(title="Popular words in Negative Reviews", x="Word", y="Count") +
+  geom_text(aes(label=match1),vjust=1.5, size=2.5, angle=20) +
+  theme(axis.title.x = element_blank(), axis.ticks.x = element_blank(), axis.text.x=element_blank())
+
+```
+
+At first we were thinking of simply taking the most popular words with `arrange(desc(total))` however, this gave us words that were common pronouns, such as the, a, it, etc.
+
+Instead, we decided to try filtering for words that would be commonly used (but not as common as the pronouns). Therefore we decided to filter for words that showed up at least 30 times, out of 5224 negative reviews that gave a 1 or 2 rating. We played around with this cutoff but 30 gave the best results without entering the "pronoun region."
+
+In the graph, we see words like awful, bad, disappointing; words that we would assume to be common in negative reviews.
+
+<br>
+
+####Most popular words used in positive reviews
+
+```{r}
+positiveReviews <- test %>%
+  filter(Score == 4 | Score == 5)
+```
+
+Now examine all the reviews posted for positive ratings:
+
+```{r}
+words <- c()
+
+for (r in positiveReviews$Summary) {
+  words <- c(words, word(r))
+}
+
+letters <- data.frame(words)
+
+letters <- letters %>%
+  extractMatches("([[:alpha:]]+)", var=words)
+
+```
+
+```{r results="hide", echo=FALSE}
+letters <- letters[!is.na(letters)]
+letters <- data.frame(letters)
+colnames(letters) <- c("match1")
+```
+
+```{r fig.width=10, warning=FALSE}
+posWords <- letters %>%
+  group_by(match1) %>%
+  summarise(total=n())%>%
+  filter(total >= 100) %>%
+  arrange(total)
+
+  
+posWords %>%
+  ggplot(aes(x=match1, y=total))+
+  geom_point()+
+  theme(legend.position="none") +
+  ylim(100,250) +
+  labs(title="Popular words in Positive Reviews", x="Word", y="Count") +
+  geom_text(aes(label=match1),vjust=1.2, size=2.5, angle=10) +
+  theme(axis.title.x = element_blank(), axis.ticks.x = element_blank(), axis.text.x=element_blank())
+
+```
+
+We did a similar analysis with positive reviews. We took words that were used at least 100 times out of 27088 reviews. The reason why we changed the cutoff for positive reviews is that there are way more positive reviews than negative reviews.
+
+We can see that words like loved, perfect, fantastic, delicious are used, along with words in CAPS, showing the extra passion in these reviews.
+
